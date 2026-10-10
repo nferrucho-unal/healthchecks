@@ -25,7 +25,7 @@ class RecordsAdmin(ModelAdmin[Record]):
     list_per_page = 200
 
     def when(self, obj: Record) -> str:
-        return obj.created.strftime("%b %-d, %H:%M")
+        return f"{obj.created:%b} {obj.created.day}, {obj.created:%H:%M}"
 
     def logger(self, obj: Record) -> str:
         level_name = obj.get_level_display()
