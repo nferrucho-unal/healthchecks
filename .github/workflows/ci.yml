@@ -143,26 +143,10 @@ jobs:
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
-                  # Provenance/SBOM attestations attach a third-party SBOM to the
-                  # loaded image that Trivy prefers over scanning the real
-                  # filesystem, which can report stale/incorrect package
-                  # versions. Disable them for the locally-scanned build.
+                  # Provenance/SBOM attestations are not needed for a
+                  # locally-loaded image used only within this job.
                   provenance: false
                   sbom: false
-
-            # Deshabilitado temporalmente mientras evaluamos cómo filtrar los
-            # falsos positivos que reporta Trivy sobre las copias vendorizadas
-            # dentro de pip (pip/_vendor/vendor.txt declara versiones antiguas
-            # de msgpack/urllib3/setuptools que no son dependencias reales de
-            # la aplicación y no podemos actualizar directamente).
-            # - name: Trivy vulnerability scan
-            #   uses: aquasecurity/trivy-action@0.35.0
-            #   with:
-            #       image-ref: healthchecks:ci
-            #       format: table
-            #       severity: CRITICAL,HIGH
-            #       ignore-unfixed: true
-            #       exit-code: "1"
 
             - name: Log in to GitHub Container Registry
               if: github.event_name != 'pull_request'
