@@ -1,0 +1,136 @@
+digraph arquitectura_healthchecks {
+	fontname=Helvetica fontsize=11 rankdir=LR
+	node [fontname=Helvetica fontsize=10]
+	edge [fontname=Helvetica fontsize=8]
+	subgraph cluster_Clientes {
+		color="#BDC3C7" fillcolor="#D6ECFF" fontsize=12 label="Capa de Clientes (actores externos)" style="filled,rounded"
+		MonitoredSystems [label="Sistemas Monitoreados
+(cron jobs, servicios, baterias/IoT)
+Envian pings via HTTP(S) o correo electronico" fillcolor=white shape=box style=filled]
+		Browser [label="Navegador Web
+(login, dashboard, gestion de proyectos y canales)" fillcolor=white shape=box style=filled]
+		ApiConsumers [label="Clientes de API
+(automatizaciones de terceros via API Key)" fillcolor=white shape=box style=filled]
+	}
+	subgraph cluster_Borde {
+		color="#BDC3C7" fillcolor="#FFF0CC" fontsize=12 label="Capa de Borde (servidor de aplicacion)" style="filled,rounded"
+		UWSGI [label="Servidor de aplicacion uWSGI
+[Pattern: Process Supervisor]
+Tactics: 4 procesos worker, harakiri=10s, hook-pre-app (migrate), attach-daemon (supervisa sendalerts/sendreports/smtpd), activos estaticos inmutables + gzip (WhiteNoise/compressor)" fillcolor=white shape=box style=filled]
+	}
+	subgraph cluster_Nucleo {
+		color="#BDC3C7" fillcolor="#DDF5E5" fontsize=12 label="Capa de Nucleo de Dominio (apps Django del monolito)" style="filled,rounded"
+		AccountsApp [label="hc.accounts
+(autenticacion, proyectos, equipos, WebAuthn, modo sudo)
+Tactics: Argon2 password hashing, WebAuthn (llave de seguridad), autorizacion por rol en Project/Member" fillcolor=white shape=box style=filled]
+		ApiApp [label="hc.api
+(dominio core: Check, Ping, Flip, Channel, Notification, TokenBucket)
+API REST v1/v2/v3
+Tactics: rate limiting (TokenBucket), idempotencia por UUID de check" fillcolor=white shape=box style=filled]
+		FrontApp [label="hc.front
+(panel web / dashboard de checks y badges)" fillcolor=white shape=box style=filled]
+		PaymentsApp [label="hc.payments
+(suscripciones de facturacion)
+[Feature flag: USE_PAYMENTS]" fillcolor=white shape=box style=filled]
+		LogsApp [label="hc.logs
+(visor de historial de pings y eventos)" fillcolor=white shape=box style=filled]
+		IntegrationsApps [label="hc.integrations.*
+(28 canales de notificacion: slack, email, webhook, sms, telegram, pagerduty, etc.)
+[Pattern: Strategy / Plugin]
+Tactics: interfaz comun Transport.notify(), despacho polimorfico via Channel.kind" fillcolor=white shape=box style=filled]
+	}
+	subgraph cluster_Background {
+		color="#BDC3C7" fillcolor="#FFE1E1" fontsize=12 label="Capa de Procesos en Segundo Plano (daemons y cron)" style="filled,rounded"
+		SendAlerts [label="sendalerts (daemon)
+[Pattern: Polling Consumer sobre cola basada en tabla]
+Tactics: ThreadPoolExecutor para notificaciones concurrentes, deteccion de cambios de estado (Flip), timeout por Check.alert_after" fillcolor=white shape=box style=filled]
+		SendReports [label="sendreports --loop (daemon)
+(reportes semanales/mensuales y recordatorios de inactividad)" fillcolor=white shape=box style=filled]
+		Smtpd [label="smtpd (daemon opcional)
+[Pattern: Protocol Translator]
+Traduce ping por correo electronico a un ping HTTP interno" fillcolor=white shape=box style=filled]
+		MaintenanceJobs [label="Tareas de mantenimiento (cron externo)
+pruneobjects, prunepingsslow, prunetokenbucket, submitchallenge
+Tactics: poda/retencion de datos expirados" fillcolor=white shape=note style=filled]
+	}
+	subgraph cluster_Persistencia {
+		color="#BDC3C7" fillcolor="#E5E8EF" fontsize=12 label="Capa de Persistencia" style="filled,rounded"
+		PostgreSQL [label="PostgreSQL 16
+(modelo principal: Check, Ping, Flip, Channel, Project, Member, Profile, TokenBucket, Subscription)
+Alternativas soportadas: SQLite (desarrollo), MySQL/MariaDB" fillcolor=white shape=cylinder style=filled]
+		Redis [label="Redis 7 (AOF)
+[declarado en docker-compose; REDIS_URL aun no esta cableado a settings.CACHES]" fillcolor=white shape=cylinder style=filled]
+		ObjectStorage [label="Almacenamiento de objetos S3 / MinIO
+(cuerpos de ping que superan PING_BODY_LIMIT)
+[opcional: si no esta configurado, se guardan en PostgreSQL]" fillcolor=white shape=cylinder style=filled]
+	}
+	subgraph cluster_Integraciones {
+		color="#BDC3C7" fillcolor="#F3E5F5" fontsize=12 label="Capa de Integraciones Externas (canales de notificacion)" style="filled,rounded"
+		ChatOps [label="Canales ChatOps
+(Slack, Discord, Telegram, Matrix, Mattermost, Zulip, RocketChat, Google Chat, MS Teams, Gotify, ntfy, Apprise, Pushbullet, Pushover)" fillcolor=white shape=box3d style=filled]
+		IncidentMgmt [label="Gestion de Incidentes
+(PagerDuty, Opsgenie, VictorOps, PagerTree, Spike)" fillcolor=white shape=box3d style=filled]
+		VoiceSms [label="Voz y SMS
+(llamada telefonica, SMS, WhatsApp, Signal)" fillcolor=white shape=box3d style=filled]
+		DevTools [label="Herramientas de Desarrollo
+(GitHub, Trello, Webhook generico, Shell local)" fillcolor=white shape=box3d style=filled]
+		EmailRelay [label="Relay SMTP saliente
+(verificacion de cuenta, reportes, alertas por email)" fillcolor=white shape=box3d style=filled]
+	}
+	MonitoredSystems -> UWSGI [label="http
+HTTP(S) GET/POST/HEAD a /ping/<uuid>" color="#34495E" penwidth=1.5 style=solid]
+	MonitoredSystems -> Smtpd [label="smtp
+Ping por correo a <uuid>@PING_EMAIL_DOMAIN" color="#34495E" penwidth=1.5 style=dashed]
+	Browser -> UWSGI [label="http
+HTTPS (sesion Django, CSRF)" color="#34495E" penwidth=1.5 style=solid]
+	ApiConsumers -> UWSGI [label="rest
+REST API v1/v2/v3 (header X-Api-Key)" color="#34495E" penwidth=1.5 style=solid]
+	UWSGI -> AccountsApp [label="http
+Enrutamiento Django (hc/urls.py)" color="#34495E" penwidth=1.5 style=solid]
+	UWSGI -> ApiApp [label="http
+Enrutamiento Django (hc/urls.py)" color="#34495E" penwidth=1.5 style=solid]
+	UWSGI -> FrontApp [label="http
+Enrutamiento Django (hc/urls.py)" color="#34495E" penwidth=1.5 style=solid]
+	UWSGI -> PaymentsApp [label="http
+Enrutamiento Django (hc/urls.py)" color="#34495E" penwidth=1.5 style=solid]
+	UWSGI -> LogsApp [label="http
+Enrutamiento Django (hc/urls.py)" color="#34495E" penwidth=1.5 style=solid]
+	AccountsApp -> PostgreSQL [label="sql
+ORM Django" color="#3498DB" penwidth=1.6 style=solid]
+	ApiApp -> PostgreSQL [label="sql
+ORM Django" color="#3498DB" penwidth=1.6 style=solid]
+	FrontApp -> PostgreSQL [label="sql
+ORM Django (lectura de dashboard)" color="#3498DB" penwidth=1.6 style=solid]
+	PaymentsApp -> PostgreSQL [label="sql
+ORM Django" color="#3498DB" penwidth=1.6 style=solid]
+	LogsApp -> PostgreSQL [label="sql
+ORM Django" color="#3498DB" penwidth=1.6 style=solid]
+	ApiApp -> ObjectStorage [label="object_upload
+Subida de cuerpos de ping grandes (cliente minio-py)" color="#3498DB" penwidth=1.6 style=solid]
+	FrontApp -> Redis [label="cache_access
+Framework de cache de Django (pendiente de activar en settings.py)" color="#9B59B6" penwidth=1.6 style=dotted]
+	SendAlerts -> PostgreSQL [label="poll
+Sondeo de Check/Flip pendientes (sin broker de mensajeria)" color="#8E44AD" penwidth=1.6 style=dotted]
+	SendReports -> PostgreSQL [label="poll
+Sondeo de perfiles para reportes periodicos" color="#8E44AD" penwidth=1.6 style=dotted]
+	Smtpd -> PostgreSQL [label="sql
+Resolucion de Check por UUID + creacion de Ping" color="#3498DB" penwidth=1.6 style=solid]
+	MaintenanceJobs -> PostgreSQL [label="sql
+Borrado de registros expirados (TokenBucket, Ping, Notification)" color="#3498DB" penwidth=1.6 style=solid]
+	MaintenanceJobs -> ObjectStorage [label="object_upload
+Purga de cuerpos de ping huerfanos (pruneobjects)" color="#3498DB" penwidth=1.6 style=solid]
+	SendAlerts -> IntegrationsApps [label="event_publish
+Flip.select_channels() + Channel.notify()" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> ChatOps [label="event_publish
+Transport.notify() (Strategy)" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> IncidentMgmt [label="event_publish
+Transport.notify() (Strategy)" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> VoiceSms [label="event_publish
+Transport.notify() (Strategy)" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> DevTools [label="event_publish
+Transport.notify() (Strategy)" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> EmailRelay [label="event_publish
+Transport.notify() / verificacion de cuenta" color="#E74C3C" penwidth=2.0 style=bold]
+	IntegrationsApps -> ChatOps [label="retry
+Reintento ante fallo HTTP (metrica statsd: hc.notifications.<kind>.fail)" color="#E67E22" penwidth=1.6 style=dashed]
+}

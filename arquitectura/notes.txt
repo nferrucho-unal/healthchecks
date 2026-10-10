@@ -1,0 +1,5 @@
+- tomar archivo arquitectura_healthchecks.gv
+- direccion generador https://dreampuf.github.io/GraphvizOnline 
+- pasar el archivo.gv 
+- generar imagen
+- descargar

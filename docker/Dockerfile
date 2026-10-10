@@ -11,8 +11,12 @@ COPY requirements.txt /tmp
 # pkg-config is required to build mysqlclient
 RUN \
     apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y build-essential libffi-dev libpq-dev libmariadb-dev libcurl4-openssl-dev pkg-config
-RUN pip wheel --wheel-dir /wheels apprise uwsgi mysqlclient minio==7.2.20 "psycopg[c]" -r /tmp/requirements.txt
+# Pin transitive dependencies (pulled in by apprise/minio) that are
+# otherwise resolved to versions with known HIGH vulnerabilities.
+RUN pip wheel --wheel-dir /wheels apprise uwsgi mysqlclient minio==7.2.20 "psycopg[c]" \
+    "msgpack>=1.2.1" "setuptools>=78.1.1" "urllib3>=2.8.0" -r /tmp/requirements.txt
 
 COPY . /opt/healthchecks/
 RUN \
@@ -27,6 +31,7 @@ WORKDIR /opt/healthchecks
 
 RUN \
     apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y libcurl4t64 libpq5 libmariadb3 && \
     rm -rf /var/apt/cache && \
     rm -rf /var/lib/apt/lists
