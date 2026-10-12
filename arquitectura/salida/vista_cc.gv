@@ -1,0 +1,108 @@
+digraph vista_cc_healthchecks {
+  rankdir=LR;
+  fontsize=11;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=10];
+  edge [fontname="Helvetica", fontsize=8];
+  compound=true;
+
+  // --- Actores ---
+  subgraph cluster_actores {
+    label="Actores externos";
+    style="filled,rounded";
+    color="#BDC3C7";
+    fillcolor="#D6ECFF";
+
+    MonitoredSystems [label="Sistemas monitoreados\n(cron, servicios, IoT)", shape=box, style=filled, fillcolor=white];
+    Browser [label="Navegador web", shape=box, style=filled, fillcolor=white];
+    ApiClients [label="Clientes API\n(X-Api-Key)", shape=box, style=filled, fillcolor=white];
+  }
+
+  // --- Contenedor web ---
+  subgraph cluster_web {
+    label="Contenedor web — uWSGI (docker-compose: web)";
+    style="filled,rounded";
+    color="#BDC3C7";
+    fillcolor="#FFF0CC";
+
+    UWSGI [label="uWSGI\ngateway HTTP :8000\n4 workers · harakiri=10s\nattach-daemon", shape=box, style=filled, fillcolor=white];
+
+    subgraph cluster_nucleo {
+      label="Núcleo Django (mismo proceso WSGI)";
+      style="filled,rounded";
+      color="#95A5A6";
+      fillcolor="#DDF5E5";
+
+      Accounts [label="hc.accounts\nauth · proyectos · WebAuthn", shape=box, style=filled, fillcolor=white];
+      Api [label="hc.api\nCheck · Ping · Flip\nChannel · TokenBucket", shape=box, style=filled, fillcolor=white];
+      Front [label="hc.front\ndashboard UI", shape=box, style=filled, fillcolor=white];
+      Payments [label="hc.payments\n(feature flag)", shape=box, style=filled, fillcolor=white];
+      Logs [label="hc.logs\nlogs → BD", shape=box, style=filled, fillcolor=white];
+      Integrations [label="hc.integrations.*\nTransport.notify()\n(Strategy / plugins)", shape=box, style=filled, fillcolor=white];
+    }
+
+    subgraph cluster_bg {
+      label="Procesos en segundo plano";
+      style="filled,rounded";
+      color="#95A5A6";
+      fillcolor="#FFE1E1";
+
+      SendAlerts [label="sendalerts\npoll Check/Flip\nThreadPool notify", shape=box, style=filled, fillcolor=white];
+      SendReports [label="sendreports --loop", shape=box, style=filled, fillcolor=white];
+      Smtpd [label="smtpd\n(opcional SMTPD_PORT)", shape=box, style=filled, fillcolor=white];
+    }
+  }
+
+  // --- Persistencia ---
+  subgraph cluster_persistencia {
+    label="Persistencia";
+    style="filled,rounded";
+    color="#BDC3C7";
+    fillcolor="#E5E8EF";
+
+    PostgreSQL [label="PostgreSQL 16\n(SQLite/MySQL opcionales)", shape=cylinder, style=filled, fillcolor=white];
+    ObjectStorage [label="S3 / MinIO\n(opcional S3_*)", shape=cylinder, style=filled, fillcolor=white];
+  }
+
+  // --- Externos ---
+  subgraph cluster_externos {
+    label="Integraciones externas";
+    style="filled,rounded";
+    color="#BDC3C7";
+    fillcolor="#F3E5F5";
+
+    ExternalNotify [label="Chat / incidentes /\nSMS / webhooks / …", shape=box3d, style=filled, fillcolor=white];
+    EmailRelay [label="Relay SMTP saliente", shape=box3d, style=filled, fillcolor=white];
+  }
+
+  // Entrada
+  MonitoredSystems -> UWSGI [label="HTTP(S)\n/ping/<uuid>", color="#34495E", penwidth=1.5];
+  MonitoredSystems -> Smtpd [label="SMTP\n(ping por correo)", color="#34495E", style=dashed, penwidth=1.5];
+  Browser -> UWSGI [label="HTTPS\nsesión + CSRF", color="#34495E", penwidth=1.5];
+  ApiClients -> UWSGI [label="REST v1/v2/v3\nX-Api-Key", color="#34495E", penwidth=1.5];
+
+  // Enrutamiento WSGI
+  UWSGI -> Accounts [label="WSGI", color="#7F8C8D"];
+  UWSGI -> Api [label="WSGI", color="#7F8C8D"];
+  UWSGI -> Front [label="WSGI", color="#7F8C8D"];
+  UWSGI -> Payments [label="WSGI", color="#7F8C8D"];
+  UWSGI -> Logs [label="WSGI", color="#7F8C8D"];
+
+  // SQL
+  Accounts -> PostgreSQL [label="SQL/ORM", color="#3498DB", penwidth=1.6];
+  Api -> PostgreSQL [label="SQL/ORM", color="#3498DB", penwidth=1.6];
+  Front -> PostgreSQL [label="SQL/ORM", color="#3498DB", penwidth=1.6];
+  Payments -> PostgreSQL [label="SQL/ORM", color="#3498DB", penwidth=1.6];
+  Logs -> PostgreSQL [label="SQL/ORM", color="#3498DB", penwidth=1.6];
+  SendAlerts -> PostgreSQL [label="poll SQL", color="#8E44AD", style=dotted, penwidth=1.6];
+  SendReports -> PostgreSQL [label="poll SQL", color="#8E44AD", style=dotted, penwidth=1.6];
+  Smtpd -> PostgreSQL [label="SQL\nCheck+Ping", color="#3498DB", penwidth=1.6];
+
+  // Object storage
+  Api -> ObjectStorage [label="S3 API\nbody overflow", color="#3498DB", penwidth=1.6];
+
+  // Alert pipeline
+  SendAlerts -> Integrations [label="in-process\nChannel.notify()", color="#E74C3C", style=bold, penwidth=2.0];
+  Integrations -> ExternalNotify [label="HTTPS / APIs", color="#E74C3C", penwidth=1.8];
+  Integrations -> EmailRelay [label="SMTP", color="#E67E22", style=dashed, penwidth=1.6];
+}
