@@ -32,13 +32,13 @@ WORKDIR /opt/healthchecks
 RUN \
     apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y libcurl4t64 libpq5 libmariadb3 && \
-    rm -rf /var/apt/cache && \
-    rm -rf /var/lib/apt/lists
+    apt-get install -y --no-install-recommends libcurl4t64 libpq5 libmariadb3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 RUN --mount=type=bind,target=/wheels,source=/wheels,from=builder \
-    pip install --upgrade pip && \
-    pip install --no-cache /wheels/*
+    pip install --no-cache-dir /wheels/* && \
+    python -m pip uninstall -y pip
 
 COPY --from=builder /opt/healthchecks/ /opt/healthchecks/
 COPY docker/fetchstatus.py /opt/healthchecks/

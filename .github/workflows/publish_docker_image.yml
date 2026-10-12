@@ -105,17 +105,21 @@ jobs:
               uses: raven-actions/actionlint@v2
 
     image:
-        name: Build and publish image to GHCR
+        name: Build, scan and publish image to GHCR
         runs-on: ubuntu-latest
         needs: [lint, tests, typecheck]
         permissions:
             contents: read
             packages: write
+        outputs:
+            digest: ${{ steps.digest.outputs.digest }}
         env:
             REGISTRY: ghcr.io
         steps:
             - uses: actions/checkout@v7
-            - uses: docker/setup-buildx-action@v3
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v4
+            - uses: docker/setup-buildx-action@v4
 
             - name: Extract metadata (tags, labels)
               id: meta
@@ -124,23 +128,75 @@ jobs:
                   images: ${{ env.REGISTRY }}/${{ github.repository }}
                   tags: |
                       type=ref,event=branch
+                      type=ref,event=tag
                       type=ref,event=pr
-                      type=sha
+                      type=sha,prefix=sha-
                       type=raw,value=latest,enable={{is_default_branch}}
 
-            - name: Build image (local)
-              uses: docker/build-push-action@v6
+            - name: Build multi-platform OCI image
+              uses: docker/build-push-action@v7
               with:
                   context: .
                   file: docker/Dockerfile
-                  load: true
-                  push: false
+                  platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
+                  outputs: type=oci,dest=/tmp/healthchecks.tar
                   tags: healthchecks:ci
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
                   provenance: false
                   sbom: false
+
+            - name: Set up Trivy
+              uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+              with:
+                  version: v0.75.0
+                  cache: false
+
+            - name: Scan every platform for vulnerabilities
+              shell: bash
+              run: |
+                  set +e
+                  mkdir -p trivy-reports
+                  mkdir -p /tmp/healthchecks-oci
+                  tar -xf /tmp/healthchecks.tar -C /tmp/healthchecks-oci
+                  scan_failed=0
+                  for platform in linux/amd64 linux/arm/v7 linux/arm64/v8; do
+                      platform_file="${platform//\//-}"
+                      report="trivy-reports/${platform_file}.json"
+                      sbom="trivy-reports/${platform_file}.cdx.json"
+                      log="trivy-reports/${platform_file}.log"
+                      trivy image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+                          --input /tmp/healthchecks-oci --platform "$platform" \
+                          --scanners vuln --format json --output "$report" 2>&1 | tee "$log"
+                      report_status=${PIPESTATUS[0]}
+                      trivy image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+                          --input /tmp/healthchecks-oci --platform "$platform" \
+                          --scanners vuln --format cyclonedx --output "$sbom" 2>&1 | tee -a "$log"
+                      sbom_status=${PIPESTATUS[0]}
+                      trivy image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+                          --input /tmp/healthchecks-oci --platform "$platform" \
+                          --scanners vuln --severity HIGH,CRITICAL --exit-code 1 2>&1 | tee -a "$log"
+                      gate_status=${PIPESTATUS[0]}
+                      if [ "$report_status" -ne 0 ] || [ "$sbom_status" -ne 0 ] || [ "$gate_status" -ne 0 ]; then
+                          echo "Trivy scan failed for $platform (report=$report_status, sbom=$sbom_status, gate=$gate_status)"
+                          scan_failed=1
+                      fi
+                  done
+                  exit "$scan_failed"
+
+            - name: Upload Trivy reports
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: trivy-vulnerability-reports
+                  path: trivy-reports/
+                  if-no-files-found: warn
+
+            - name: Install Skopeo
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends skopeo
 
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@v3
@@ -149,18 +205,25 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Push image to GHCR
-              uses: docker/build-push-action@v6
-              with:
-                  context: .
-                  file: docker/Dockerfile
-                  push: true
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
+            - name: Push scanned OCI image to GHCR
+              env:
+                  TAGS: ${{ steps.meta.outputs.tags }}
+              run: |
+                  while IFS= read -r image; do
+                      [ -n "$image" ] || continue
+                      skopeo copy --all --preserve-digests \
+                          oci-archive:/tmp/healthchecks.tar "docker://${image}"
+                  done <<< "$TAGS"
+
+            - name: Get published image digest
+              id: digest
+              run: |
+                  source="${REGISTRY}/${GITHUB_REPOSITORY}:sha-${GITHUB_SHA:0:7}"
+                  digest="$(skopeo inspect --raw "docker://${source}" | sha256sum | cut -d ' ' -f 1)"
+                  echo "digest=sha256:${digest}" >> "$GITHUB_OUTPUT"
 
     push_to_registry:
-        name: Push Docker image to Docker Hub
+        name: Promote scanned image to Docker Hub
         runs-on: ubuntu-latest
         needs: [lint, tests, typecheck, image]
         permissions:
@@ -179,26 +242,31 @@ jobs:
                       type=ref,event=tag
                       type=sha,prefix=sha-
 
+            - name: Install Skopeo
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends skopeo
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Log in to Docker Hub
               uses: docker/login-action@v4
               with:
                   username: ${{ secrets.DOCKERHUB_USERNAME }}
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: Set up QEMU
-              uses: docker/setup-qemu-action@v4
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v4
-
-            - name: Build and push Docker image
-              uses: docker/build-push-action@v7
-              with:
-                  context: .
-                  file: docker/Dockerfile
-                  platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
-                  push: true
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  annotations: ${{ steps.meta.outputs.annotations }}
-                  sbom: true
+            - name: Promote scanned image to Docker Hub
+              env:
+                  SOURCE: ghcr.io/${{ github.repository }}@${{ needs.image.outputs.digest }}
+                  TAGS: ${{ steps.meta.outputs.tags }}
+              run: |
+                  while IFS= read -r image; do
+                      [ -n "$image" ] || continue
+                      skopeo copy --all --preserve-digests \
+                          "docker://${SOURCE}" "docker://${image}"
+                  done <<< "$TAGS"
