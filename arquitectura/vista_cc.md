@@ -102,14 +102,6 @@ flowchart LR
 | **Servicios externos** | Externos | Destinos de alerta (chat, incidentes, SMS, …) | transports de integración |
 | **Relay SMTP** | Externo | Correo saliente (verificación, reportes, canal email) | `EMAIL_HOST*` |
 
-### Clasificación útil para el laboratorio
-
-- **Componentes arquitectónicos (infraestructura / borde):** uWSGI, PostgreSQL, S3/MinIO, smtpd (adaptador de protocolo), servicios externos.
-- **Componentes de servicio (dominio / aplicación):** `accounts`, `api`, `front`, `payments`, `logs`, `integrations.*`, `sendalerts`, `sendreports`.
-- **Actores:** sistemas monitoreados, navegador, clientes API.
-
-> Nota: las apps Django **no** son microservicios desplegados por separado; comparten proceso WSGI y base de datos. En C&C se modelan como componentes lógicos del monolito.
-
 ## 4 Conectores y protocolos
 
 | Conector | Origen → Destino | Protocolo / mecanismo | Qué transporta |
