@@ -40,10 +40,10 @@ termination.
 
 * `collectstatic`, `compress` – when running with Docker, you do
   not need to manually run these. These are run while building the container image,
-  and their results are baked in the image (you can find them listed in the [Dockerfile](https://github.com/healthchecks/healthchecks/blob/master/docker/Dockerfile)).
+  and their results are baked in the image (you can find them listed in the [Dockerfile](./Dockerfile)).
 * `migrate`, `sendalerts`, `sendreports`, `smtpd` – when running with Docker, you
   also do  not need to manually run these. They are run automatically on
-  container startup (you can find them listed in [uwsgi.ini](https://github.com/healthchecks/healthchecks/blob/master/docker/uwsgi.ini)).
+  container startup (you can find them listed in [uwsgi.ini](./uwsgi.ini)).
 * `createsuperuser`, `pruneobjects`, `prunetokenbucket`, `pruneusers`,
   `settelegramwebhook` – you need to run them **inside the container**, not on
   the host system. Do it like so:
@@ -91,8 +91,7 @@ on the value of the `SMTPD_PORT` environment value:
   You may also need to edit `docker-compose.yml` to expose the listening port
   (see the "ports" section under the "web" service in `docker-compose.yml`).
 
-The conditional logic lives in uWSGI configuration file,
-[uwsgi.ini](https://github.com/healthchecks/healthchecks/blob/master/docker/uwsgi.ini).
+The conditional logic lives in the [uWSGI configuration file](./uwsgi.ini).
 
 ## TLS Termination and CSRF Protection
 
@@ -151,9 +150,14 @@ docker run --rm --name pgauto -it \
 
 ## Pre-built Images
 
-Pre-built Docker images, built from the Dockerfile in this directory, are available
-[on Docker Hub](https://hub.docker.com/r/healthchecks/healthchecks). The images are
-built automatically for every new release.
+Pre-built Docker images, built from the Dockerfile in this directory, are published
+to the Docker Hub repository `<DOCKERHUB_USERNAME>/healthchecks`. The Docker Hub
+username is configured through the `DOCKERHUB_USERNAME` GitHub Actions secret and
+the access token through `DOCKERHUB_TOKEN`.
+
+Images are built automatically for every new release and every push to the `master`
+branch. Images built from `master` are tagged `master`; release images use the
+release tag. A commit-specific `sha-<commit>` tag is also published.
 
 The Docker images:
 
@@ -169,11 +173,11 @@ The Docker images:
   the Healthchecks container behind a reverse proxy or load balancer that handles TLS
   termination.
 
-To use a pre-built image for Healthchecks version X.Y, in the `docker-compose.yml` file
-replace the "build" section with:
+To use a pre-built image for a release, replace the `build` section in
+`docker-compose.yml` with:
 
 ```text
-image: healthchecks/healthchecks:vX.Y
+image: <DOCKERHUB_USERNAME>/healthchecks:vX.Y
 ```
 
 To upgrade to a newer Healthchecks version, edit `docker-compose.yml` and update the

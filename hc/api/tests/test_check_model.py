@@ -435,7 +435,7 @@ class CheckModelTestCase(BaseTestCase):
         assert gs
         self.assertEqual(gs.tzinfo, timezone.utc)
 
-    @time_machine.travel("2023-10-29T01:05:00")
+    @time_machine.travel("2023-10-29T01:05:00+00:00")
     def test_get_status_handles_autumn_dst_transition(self) -> None:
         check = Check(project=self.project)
         check.kind = "cron"
