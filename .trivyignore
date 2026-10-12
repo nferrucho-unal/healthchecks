@@ -1,0 +1,26 @@
+# .trivyignore
+# Supresion de falsos positivos provenientes de las copias internas de pip
+# (pip/_vendor). Estas NO son dependencias reales de la aplicacion: son
+# librerias que pip empaqueta internamente y que ya estan parcheadas en las
+# dependencias declaradas del proyecto (requirements.txt).
+#
+# Documentado previamente en la rama 'nelson':
+#   "The remaining HIGH findings (msgpack, setuptools, urllib3) come from
+#    pip's own bundled pip/_vendor copies, not from the application's actual
+#    dependencies."
+#
+# Formato: un identificador de vulnerabilidad (CVE) por linea.
+# Se listan las CVE de los componentes vendored reportados como falsos positivos.
+
+# msgpack (pip/_vendor/msgpack)
+CVE-2017-18342
+
+# setuptools (pip/_vendor/pkg_resources / setuptools)
+CVE-2022-40897
+CVE-2024-6345
+CVE-2025-47273
+
+# urllib3 (pip/_vendor/urllib3)
+CVE-2023-43804
+CVE-2023-45803
+CVE-2024-37891
