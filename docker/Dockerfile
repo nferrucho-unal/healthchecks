@@ -16,7 +16,7 @@ RUN \
 # Pin transitive dependencies (pulled in by apprise/minio) that are
 # otherwise resolved to versions with known HIGH vulnerabilities.
 RUN pip wheel --wheel-dir /wheels apprise uwsgi mysqlclient minio==7.2.20 "psycopg[c]" \
-    "msgpack>=1.2.1" "setuptools>=78.1.1" "urllib3>=2.8.0" -r /tmp/requirements.txt
+    "msgpack>=1.2.1" "setuptools>=78.1.1" -r /tmp/requirements.txt
 
 COPY . /opt/healthchecks/
 RUN \
