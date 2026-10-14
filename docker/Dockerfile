@@ -35,7 +35,7 @@ WORKDIR /opt/healthchecks
 RUN \
     apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends libcurl4t64 libpq5 libmariadb3 && \
+    apt-get install -y --no-install-recommends libcurl4 libpq5 libmariadb3 && \
     rm -rf /var/apt/cache && \
     rm -rf /var/lib/apt/lists/*
 
