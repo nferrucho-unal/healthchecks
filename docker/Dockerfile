@@ -25,7 +25,7 @@ RUN \
 
 FROM python:3.14.7-slim-trixie
 
-RUN useradd --system hc
+RUN groupadd --system hc && useradd --system --gid hc hc
 ENV PYTHONUNBUFFERED=1
 WORKDIR /opt/healthchecks
 
@@ -48,7 +48,7 @@ RUN \
     DEBUG=False SECRET_KEY=build-key ./manage.py collectstatic --noinput && \
     DEBUG=False SECRET_KEY=build-key ./manage.py compress
 
-RUN mkdir /data && chown hc /data
+RUN mkdir /data && chown hc:hc /data
 
 USER hc
 
