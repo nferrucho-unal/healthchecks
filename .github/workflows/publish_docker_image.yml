@@ -12,12 +12,8 @@ permissions:
 
 jobs:
     tests:
-        name: Tests hc.${{ matrix.service }}
+        name: Run project test suite
         runs-on: ubuntu-latest
-        strategy:
-            fail-fast: false
-            matrix:
-                service: [api, front, accounts, lib, logs]
         env:
             SECRET_KEY: dummy-key
             DB: postgres
@@ -56,8 +52,9 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt
-            - name: Run tests for hc.${{ matrix.service }}
-              run: python manage.py test hc.${{ matrix.service }} --verbosity 2
+            # Modificado: Ejecuta toda la suite consolidada de una sola vez
+            - name: Run all tests
+              run: python manage.py test --verbosity 2
 
     typecheck:
         name: Mypy
@@ -191,6 +188,27 @@ jobs:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v4
 
+            # --- INTEGRACIÓN DE TRIVY (PASO 1: Compilación de prueba local) ---
+            - name: Build image locally for scanning
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: docker/Dockerfile
+                  load: true
+                  push: false
+                  tags: healthchecks:scan-target
+
+            # --- INTEGRACIÓN DE TRIVY (PASO 2: Escaneo de Seguridad) ---
+            - name: Run Trivy vulnerability scanner
+              uses: aquasecurity/trivy-action@master
+              with:
+                  image-ref: 'healthchecks:scan-target'
+                  format: 'table'
+                  exit-code: '1'
+                  ignore-unfixed: true
+                  severity: 'CRITICAL,HIGH'
+
+            # --- INTEGRACIÓN DE TRIVY (PASO 3: Compilación multi-arch y Push definitivo) ---
             - name: Build and push Docker image
               uses: docker/build-push-action@v7
               with:

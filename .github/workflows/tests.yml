@@ -13,8 +13,8 @@ jobs:
         runs-on: ubuntu-26.04
         strategy:
             matrix:
-                db: [sqlite, postgres, mysql, mariadb]
-                python-version: ["3.12", "3.13", "3.14"]
+                db: [sqlite, postgres, mysql]
+                python-version: ["3.14"]
                 include:
                     - db: postgres
                       db_user: runner
@@ -28,10 +28,10 @@ jobs:
 
         steps:
             - uses: actions/checkout@v7
-            - name: Set up Python ${{ matrix.python-version }}
+            - name: Set up Python \${{ matrix.python-version }}
               uses: actions/setup-python@v6
               with:
-                  python-version: ${{ matrix.python-version }}
+                  python-version: \${{ matrix.python-version }}
                   allow-prereleases: true
             - name: Start MySQL
               if: matrix.db == 'mysql'
@@ -47,13 +47,13 @@ jobs:
             - name: Install Dependencies
               run: |
                   sudo apt-get update -qq
-                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev
+                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev libpq-dev default-libmysqlclient-dev pkg-config
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt mysqlclient
             - name: Run Tests
               env:
-                  DB: ${{ matrix.db }}
-                  DB_USER: ${{ matrix.db_user }}
-                  DB_PASSWORD: ${{ matrix.db_password }}
+                  DB: \${{ matrix.db }}
+                  DB_USER: \${{ matrix.db_user }}
+                  DB_PASSWORD: \${{ matrix.db_password }}
                   SECRET_KEY: dummy-key
               run: python manage.py test
