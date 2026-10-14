@@ -1,8 +1,8 @@
 # Publicación de imágenes Docker
 
 Este documento describe [`publish_docker_image.yml`](./publish_docker_image.yml).
-El workflow valida el proyecto antes de publicar la imagen en los registros de
-contenedores.
+El workflow valida el proyecto, publica la imagen en GHCR y, después de un escaneo
+de seguridad, la publica también en Docker Hub.
 
 ## Cuándo se ejecuta
 
@@ -14,26 +14,32 @@ contenedores.
 
 Los jobs `tests`, `typecheck` y `lint` se ejecutan en paralelo:
 
-- **Pruebas:** ejecuta los tests de `hc.api`, `hc.front`, `hc.accounts`, `hc.lib`
-  y `hc.logs` con Python 3.14 y PostgreSQL 16.
-- **Mypy:** ejecuta `mypy --strict hc`.
+- **Pruebas:** instala Python 3.14 y las dependencias del proyecto, y ejecuta toda
+  la suite con `python manage.py test --verbosity 2` contra PostgreSQL 16.
+- **Mypy:** crea `hc/local_settings.py` y ejecuta `mypy --strict hc`.
 - **Lint:** revisa el Dockerfile con Hadolint, valida los manifiestos Docker Compose
   y analiza los workflows con Actionlint.
 - **Imagen en GHCR:** espera a que pasen `lint`, `tests` y `typecheck`. Construye la
-  imagen desde `docker/Dockerfile` y la publica en `ghcr.io/<propietario>/<repositorio>`.
+  imagen desde `docker/Dockerfile` y la publica en
+  `ghcr.io/<propietario>/<repositorio>`.
 - **Docker Hub:** espera a que terminen correctamente los tres chequeos y la
-  publicación en GHCR. Construye y publica en Docker Hub la imagen
+  publicación en GHCR. Primero construye una imagen local y la escanea con Trivy;
+  falla si encuentra vulnerabilidades corregibles `CRITICAL` o `HIGH`, e ignora las
+  que aún no tienen corrección. Si pasa el escaneo, construye y publica
   `<DOCKERHUB_USERNAME>/healthchecks` para `linux/amd64`, `linux/arm/v7` y
   `linux/arm64/v8`, con SBOM.
 
-Si falla cualquiera de los chequeos o la publicación en GHCR, Docker Hub no recibe
-la imagen.
+Si falla un chequeo, la publicación en GHCR o el escaneo Trivy, Docker Hub no recibe
+la imagen. Como GHCR se publica antes del job de Docker Hub, un fallo de Trivy no
+revierte la imagen que ya se haya publicado en GHCR.
 
 ## Etiquetas
 
-La acción de metadata genera etiquetas a partir de la rama o tag de Git y del
-commit (`sha-<commit>`). En los pushes a `master`, la imagen incluye la etiqueta
-`master`; para releases se usa la etiqueta correspondiente al tag del release.
+Para GHCR, las etiquetas incluyen la referencia de rama o pull request, el commit
+y `latest` en la rama predeterminada. Para Docker Hub, se generan etiquetas para la
+rama o tag y para el commit con el prefijo `sha-`. Así, los pushes a `master` usan
+la etiqueta `master`; los releases usan su tag en Docker Hub y la etiqueta del
+commit en GHCR.
 
 ## Configuración de Docker Hub
 

@@ -1,29 +1,47 @@
 volumes:
     db-data:
 
+networks:
+  backend:
+    internal: true # Bloquea todo el tráfico de internet entrante/saliente para la Base de Datos
+  frontend:
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine # Versión reducida (Alpine) para minimizar vulnerabilidades del SO
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=$DB_NAME
-      - POSTGRES_PASSWORD=$DB_PASSWORD
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    networks:
+      - backend
+    restart: always # Asegura alta disponibilidad si el proceso falla
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
   web:
     build:
         context: ..
         dockerfile: docker/Dockerfile
-    # To use a pre-built image, remove the above "build" section
-    # and uncomment the following line:
-    # image: healthchecks/healthchecks:latest
     env_file:
         - .env
     ports:
-        - "8000:8000"
-        # To enable SMTP on port 2525, set SMTPD_PORT=2525 in .env
-        # and uncomment the following line:
-        # - "2525:2525"
+        - "127.0.0.1:8000:8000" # Mitigación Crítica: Solo accesible localmente (usa Nginx/Traefik como Proxy externo)
+    networks:
+      - frontend
+      - backend
     depends_on:
-        - db
-    command: bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; uwsgi /opt/healthchecks/docker/uwsgi.ini'
-
+      db:
+        condition: service_started
+    restart: on-failure
+    # Se reemplaza el bucle bash inseguro por la sintaxis estándar nativa de uwsgi
+    command: ["uwsgi", "/opt/healthchecks/docker/uwsgi.ini"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
