@@ -1,4 +1,4 @@
-FROM python:3.14.7-slim-trixie AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -25,7 +25,7 @@ RUN \
     rm -rf /opt/healthchecks/.git && \
     rm -rf /opt/healthchecks/stuff
 
-FROM python:3.14.7-slim-trixie
+FROM python:3.12-slim-bookworm
 
 # Creación de usuario del sistema de forma restrictiva
 RUN useradd --system --no-create-home --shell /bin/false hc
