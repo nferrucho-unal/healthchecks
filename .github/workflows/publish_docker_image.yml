@@ -209,8 +209,9 @@ jobs:
                   exit-code: '1'
                   ignore-unfixed: true
                   severity: 'CRITICAL,HIGH'
-                  trivy-arguments: '--list-all-pkgs'
-
+            #     trivy-arguments: '--list-all-pkgs'
+                  vuln-type: 'os,library'
+                   
             # --- INTEGRACIÓN DE TRIVY (PASO 3: Compilación multi-arch y Push definitivo) ---
             - name: Build and push Docker image
               uses: docker/build-push-action@v7
