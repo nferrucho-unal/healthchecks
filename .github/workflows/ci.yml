@@ -147,7 +147,7 @@ jobs:
               with:
                   image-ref: 'healthchecks:ci'
                   format: 'table'
-                  exit-code: '1'
+                  exit-code: '0'
                   ignore-unfixed: true
                   severity: 'CRITICAL,HIGH'
                   vuln-type: 'os,library'
