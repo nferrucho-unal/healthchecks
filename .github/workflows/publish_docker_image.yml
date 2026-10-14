@@ -198,6 +198,7 @@ jobs:
                   load: true
                   push: false
                   tags: healthchecks:scan-target
+                  list-all-pkgs: true
 
             # --- INTEGRACIÓN DE TRIVY (PASO 2: Escaneo de Seguridad) ---
             - name: Run Trivy vulnerability scanner
