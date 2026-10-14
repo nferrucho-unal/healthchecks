@@ -1,20 +1,30 @@
-FROM python:3.14.7-slim-trixie AS builder
+# Se recomienda usar el tag exacto de la última versión menor para forzar parches actualizados
+FROM python:3.12-alpine AS builder
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# En Alpine usamos /bin/sh con control de tuberías seguro
+SHELL ["/bin/sh", "-o", "pipefail", "-c"]
 
 COPY requirements.txt /tmp
-# build-essential is required to build uswsi, psycopg, mysqlclient
-# libffi-dev is required to build cffi (a dependency of minio and cryptography)
-# libpq-dev is required to build psycopg[c]
-# libmaria-dev is required to build mysqlclient
-# libcurl4-openssl-dev is required to build pycurl
-# pkg-config is required to build mysqlclient
+
 RUN \
-    apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y build-essential libffi-dev libpq-dev libmariadb-dev libcurl4-openssl-dev pkg-config
-# Pin transitive dependencies (pulled in by apprise/minio) that are
-# otherwise resolved to versions with known HIGH vulnerabilities.
+    apk update && \
+    apk upgrade && \
+    # Equivalente completo de dependencias de compilación para C en Alpine Linux
+    apk add --no-cache \
+        build-base \
+        python3-dev \
+        libffi-dev \
+        postgresql-dev \
+        mariadb-dev \
+        curl-dev \
+        linux-headers \
+        openssl-dev \
+        zlib-dev \
+        pkgconfig
+
+# Asegurar que pip, setuptools y wheel estén en su última versión antes de compilar
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
 RUN pip wheel --wheel-dir /wheels apprise uwsgi mysqlclient minio==7.2.20 "psycopg[c]" \
     "msgpack>=1.2.1" "setuptools>=78.1.1" -r /tmp/requirements.txt
 
@@ -23,35 +33,41 @@ RUN \
     rm -rf /opt/healthchecks/.git && \
     rm -rf /opt/healthchecks/stuff
 
-FROM python:3.14.7-slim-trixie
+# --- Segunda Etapa (Imagen Final) ---
+FROM python:3.12-alpine
 
-RUN groupadd --system hc && useradd --system --gid hc hc
+# Creación de usuario del sistema de forma restrictiva usando comandos nativos de Alpine
+RUN addgroup -S hc && adduser -S -G hc -h /home/hc -s /sbin/nologin hc
 ENV PYTHONUNBUFFERED=1
 WORKDIR /opt/healthchecks
 
 RUN \
-    apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y libcurl4t64 libpq5 libmariadb3 && \
-    rm -rf /var/apt/cache && \
-    rm -rf /var/lib/apt/lists
+    apk update && \
+    apk upgrade && \
+    # Instalación de librerías en tiempo de ejecución equivalentes y bash para compatibilidad
+    apk add --no-cache libcurl libpq mariadb-connector-c bash && \
+    # CORRECCIÓN: Ruta exacta para eliminar de raíz las cachés de paquetes en Alpine
+    rm -rf /var/cache/apk/*
 
 RUN --mount=type=bind,target=/wheels,source=/wheels,from=builder \
-    pip install --upgrade pip && \
-    pip install --no-cache /wheels/*
+    pip install --no-cache-dir /wheels/*
 
 COPY --from=builder /opt/healthchecks/ /opt/healthchecks/
-COPY docker/fetchstatus.py /opt/healthchecks/
+# COPY docker/fetchstatus.py /opt/healthchecks/
+
+ENV USE_GZIP_MIDDLEWARE=True
+ENV DEBUG=False
+ENV SECRET_KEY=temporary-build-placeholder-key
+ENV COMPRESS_ENABLED=True
 
 RUN \
     rm -f /opt/healthchecks/hc/local_settings.py && \
-    DEBUG=False SECRET_KEY=build-key ./manage.py collectstatic --noinput && \
-    DEBUG=False SECRET_KEY=build-key ./manage.py compress
+    ./manage.py collectstatic --noinput && \
+    ./manage.py compress --force
 
-RUN mkdir /data && chown hc:hc /data
+RUN mkdir -p /data && chown hc:hc /data
 
 USER hc
 
-ENV USE_GZIP_MIDDLEWARE=True
 HEALTHCHECK --start-period=20s --start-interval=5s --interval=60s --retries=1 CMD ./fetchstatus.py
 CMD [ "uwsgi", "/opt/healthchecks/docker/uwsgi.ini"]

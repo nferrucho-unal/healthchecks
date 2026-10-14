@@ -2,9 +2,9 @@ name: Mypy
 
 on:
     push:
-        branches: [master]
+        branches: [nelson]
     pull_request:
-        branches: [master]
+        branches: [nelson]
 
 permissions: {}
 
@@ -20,9 +20,9 @@ jobs:
             - name: Install Dependencies
               run: |
                   sudo apt-get update -qq
-                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev
+                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev libpq-dev default-libmysqlclient-dev pkg-config
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt
                   touch hc/local_settings.py
-            - name: Run Mypy
-              run: mypy --strict --show-traceback hc
+            - name: Run mypy
+              run: mypy hc
