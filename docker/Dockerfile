@@ -1,21 +1,29 @@
-FROM python:3.12-slim-bookworm AS builder
+# Se recomienda usar el tag exacto de la última versión menor para forzar parches actualizados
+FROM python:3.12-alpine AS builder
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# En Alpine usamos /bin/sh con control de tuberías seguro
+SHELL ["/bin/sh", "-o", "pipefail", "-c"]
 
-COPY requirements.txt /tmp
+# COPY requirements.txt /tmp
 
 RUN \
-    apt-get update && \
-    apt-get upgrade -y && \
-    # Uso de --no-install-recommends para evitar dependencias innecesarias
-    apt-get install -y --no-install-recommends \
-        build-essential \
+    apk update && \
+    apk upgrade && \
+    # Equivalente completo de dependencias de compilación para C en Alpine Linux
+    apk add --no-cache \
+        build-base \
+        python3-dev \
         libffi-dev \
-        libpq-dev \
-        libmariadb-dev \
-        libcurl4-openssl-dev \
-        pkg-config && \
-    rm -rf /var/lib/apt/lists/*
+        postgresql-dev \
+        mariadb-dev \
+        curl-dev \
+        linux-headers \
+        openssl-dev \
+        zlib-dev \
+        pkgconfig
+
+# Asegurar que pip, setuptools y wheel estén en su última versión antes de compilar
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 RUN pip wheel --wheel-dir /wheels apprise uwsgi mysqlclient minio==7.2.20 "psycopg[c]" \
     "msgpack>=1.2.1" "setuptools>=78.1.1" -r /tmp/requirements.txt
@@ -25,27 +33,28 @@ RUN \
     rm -rf /opt/healthchecks/.git && \
     rm -rf /opt/healthchecks/stuff
 
-FROM python:3.12-slim-bookworm
+# --- Segunda Etapa (Imagen Final) ---
+FROM python:3.12-alpine
 
-# Creación de usuario del sistema de forma restrictiva
-RUN useradd --system --no-create-home --shell /bin/false hc
+# Creación de usuario del sistema de forma restrictiva usando comandos nativos de Alpine
+RUN adduser --system --no-create-home --shell /bin/false hc
 ENV PYTHONUNBUFFERED=1
 WORKDIR /opt/healthchecks
 
 RUN \
-    apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends libcurl4 libpq5 libmariadb3 && \
-    rm -rf /var/apt/cache && \
-    rm -rf /var/lib/apt/lists/*
+    apk update && \
+    apk upgrade && \
+    # Instalación de librerías en tiempo de ejecución equivalentes y bash para compatibilidad
+    apk add --no-cache libcurl libpq mariadb-connector-c bash && \
+    # CORRECCIÓN: Ruta exacta para eliminar de raíz las cachés de paquetes en Alpine
+    rm -rf /var/cache/apk/*
 
 RUN --mount=type=bind,target=/wheels,source=/wheels,from=builder \
     pip install --no-cache-dir /wheels/*
 
 COPY --from=builder /opt/healthchecks/ /opt/healthchecks/
-COPY docker/fetchstatus.py /opt/healthchecks/
+# COPY docker/fetchstatus.py /opt/healthchecks/
 
-# --- Variables de entorno requeridas para la compilación estática offline ---
 ENV USE_GZIP_MIDDLEWARE=True
 ENV DEBUG=False
 ENV SECRET_KEY=temporary-build-placeholder-key
