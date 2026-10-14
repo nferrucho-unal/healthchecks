@@ -31,7 +31,7 @@ jobs:
             - name: Set up Python ${{ matrix.python-version }}
               uses: actions/setup-python@v6
               with:
-                  python-version: \${{ matrix.python-version }}
+                  python-version: ${{ matrix.python-version }}
                   allow-prereleases: true
             - name: Start MySQL
               if: matrix.db == 'mysql'
