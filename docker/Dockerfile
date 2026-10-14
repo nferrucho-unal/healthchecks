@@ -4,7 +4,7 @@ FROM python:3.12-alpine AS builder
 # En Alpine usamos /bin/sh con control de tuberías seguro
 SHELL ["/bin/sh", "-o", "pipefail", "-c"]
 
-# COPY requirements.txt /tmp
+COPY requirements.txt /tmp
 
 RUN \
     apk update && \
