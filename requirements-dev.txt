@@ -2,7 +2,7 @@ apprise==1.13.1
 django-stubs==6.1.2
 Markdown==3.7
 minio==7.2.20
-mypy==1.15.0
+mypy==1.4.1
 Pygments==2.19.1
 time-machine==2.16.0
 types-Markdown

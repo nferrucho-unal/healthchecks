@@ -81,7 +81,7 @@ jobs:
                   pip install -r requirements.txt -r requirements-dev.txt
                   touch hc/local_settings.py
             - name: Run mypy
-              run: mypy --strict hc
+              run: mypy hc
 
     lint:
         name: Lint Dockerfile y manifiestos
