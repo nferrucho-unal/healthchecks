@@ -198,7 +198,7 @@ jobs:
                   load: true
                   push: false
                   tags: healthchecks:scan-target
-                  list-all-pkgs: true
+                   
 
             # --- INTEGRACIÓN DE TRIVY (PASO 2: Escaneo de Seguridad) ---
             - name: Run Trivy vulnerability scanner
@@ -209,6 +209,7 @@ jobs:
                   exit-code: '1'
                   ignore-unfixed: true
                   severity: 'CRITICAL,HIGH'
+                  trivy-arguments: '--list-all-pkgs'
 
             # --- INTEGRACIÓN DE TRIVY (PASO 3: Compilación multi-arch y Push definitivo) ---
             - name: Build and push Docker image
