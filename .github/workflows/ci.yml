@@ -2,7 +2,7 @@ name: CI por servicio
 
 on:
     pull_request:
-        branches: [master]
+        branches: [nelson]
     workflow_dispatch:
 
 permissions:
@@ -125,7 +125,7 @@ jobs:
                       type=ref,event=branch
                       type=ref,event=pr
                       type=sha
-                      type=raw,value=latest,enable={{is_default_branch}}
+                       type=raw,value=latest,enable=${{ github.ref_name == 'nelson' }} # Forzar latest en rama nelson
 
             - name: Build image (local)
               uses: docker/build-push-action@v6
