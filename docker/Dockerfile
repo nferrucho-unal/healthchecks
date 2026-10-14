@@ -6,7 +6,7 @@ SHELL ["/bin/sh", "-o", "pipefail", "-c"]
 
 COPY requirements.txt /tmp
 
-RUN \
+RUN \f
     apk update && \
     apk upgrade && \
     # Equivalente completo de dependencias de compilación para C en Alpine Linux

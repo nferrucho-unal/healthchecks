@@ -1,26 +1,31 @@
-# 1. Capa de Red
 module "networking" {
-  source = "./modules/networking"
-  vpc_cidr = "10.0.0.0/16"
+  source      = "./modules/networking"
+  name_prefix = var.name_prefix
+  vpc_cidr    = var.vpc_cidr
 }
 
-# 2. Capa de Persistencia (Desacoplada)
 module "database" {
-  source             = "./modules/database"
-  vpc_id             = module.networking.vpc_id
-  private_subnet_ids = module.networking.private_subnet_ids
-  db_user            = var.db_user
-  db_password        = var.db_password # Variable sensible
+  source                     = "./modules/database"
+  name_prefix                = var.name_prefix
+  vpc_id                     = module.networking.vpc_id
+  private_subnet_ids         = module.networking.private_subnet_ids
+  application_security_group = module.compute.task_security_group_id
+  db_name                    = var.db_name
+  db_user                    = var.db_user
+  db_instance_class          = var.db_instance_class
 }
 
-# 3. Capa de Cómputo
 module "compute" {
-  source            = "./modules/compute"
-  vpc_id            = module.networking.vpc_id
-  public_subnet_ids = module.networking.public_subnet_ids
-  
-  # Inyección de parámetros de conexión de forma externa
-  database_url      = module.database.db_endpoint
-  database_user     = var.db_user
-  database_password = var.db_password
+  source                 = "./modules/compute"
+  name_prefix            = var.name_prefix
+  vpc_id                 = module.networking.vpc_id
+  public_subnet_ids      = module.networking.public_subnet_ids
+  image_tag              = var.image_tag
+  desired_count          = var.desired_count
+  aws_region             = var.aws_region
+  db_endpoint            = module.database.db_endpoint
+  db_port                = module.database.db_port
+  db_name                = var.db_name
+  db_user                = var.db_user
+  db_password_secret_arn = module.database.db_password_secret_arn
 }
