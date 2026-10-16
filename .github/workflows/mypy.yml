@@ -2,15 +2,16 @@ name: Mypy
 
 on:
     push:
-        branches: [nelson]
+        branches: [master]
     pull_request:
-        branches: [nelson]
+        branches: [master]
 
-permissions: {}
+permissions:
+    contents: read
 
 jobs:
     main:
-        runs-on: ubuntu-26.04
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
             - name: Set up Python
@@ -20,9 +21,9 @@ jobs:
             - name: Install Dependencies
               run: |
                   sudo apt-get update -qq
-                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev libpq-dev default-libmysqlclient-dev pkg-config
+                  sudo apt-get install -y libcurl4-openssl-dev libpython3-dev libssl-dev
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt
                   touch hc/local_settings.py
-            - name: Run mypy
-              run: mypy hc
+            - name: Run Mypy
+              run: mypy --strict --show-traceback hc

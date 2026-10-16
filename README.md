@@ -1,7 +1,7 @@
 # Healthchecks
 
-[![Tests](https://github.com/nferrucho-unal/healthchecks/actions/workflows/tests.yml/badge.svg)](https://github.com/nferrucho-unal/healthchecks/actions/workflows/tests.yml)
-[![Coverage workflow](https://github.com/nferrucho-unal/healthchecks/actions/workflows/coverage.yml/badge.svg)](https://github.com/nferrucho-unal/healthchecks/actions/workflows/coverage.yml)
+[![Tests](https://github.com/healthchecks/healthchecks/actions/workflows/tests.yml/badge.svg)](https://github.com/healthchecks/healthchecks/actions/workflows/tests.yml)
+[![Coverage Status](https://coveralls.io/repos/healthchecks/healthchecks/badge.svg?branch=master&service=github)](https://coveralls.io/github/healthchecks/healthchecks?branch=master)
 
 Healthchecks is a cron job monitoring service. It listens for HTTP requests
 and email messages ("pings") from your cron jobs and scheduled tasks ("checks").
@@ -22,9 +22,9 @@ Healthchecks is licensed under the BSD 3-clause license.
 Healthchecks is available as a hosted service
 at [https://healthchecks.io/](https://healthchecks.io/).
 
-A [Dockerfile](https://github.com/nferrucho-unal/healthchecks/tree/master/docker)
-and pre-built Docker images published to Docker Hub are available. The Docker Hub
-namespace is configured with the `DOCKERHUB_USERNAME` GitHub Actions secret.
+A [Dockerfile](https://github.com/healthchecks/healthchecks/tree/master/docker)
+and [pre-built Docker images](https://hub.docker.com/r/healthchecks/healthchecks) are
+available.
 
 Screenshots:
 
@@ -57,6 +57,9 @@ You can use them in your READMEs, dashboards, or status pages.
 
 ## Setting Up for Development
 
+If you are planning to developing Healthchecks, please read
+[CONTRIBUTING.md](https://github.com/healthchecks/healthchecks/tree/master/CONTRIBUTING.md).
+
 To set up Healthchecks development environment:
 
 * Install dependencies (Debian/Ubuntu):
@@ -85,7 +88,7 @@ To set up Healthchecks development environment:
 * Check out project code:
 
   ```sh
-  git clone https://github.com/nferrucho-unal/healthchecks.git
+  git clone https://github.com/healthchecks/healthchecks.git
   ```
 
 * Install requirements (Django, ...) into virtualenv:
@@ -569,7 +572,8 @@ Healthchecks instance in production.
   *  `manage.py sendalerts` is the process that monitors checks and sends out
      monitoring alerts. It must be always running, it must be started on reboot, and it
      must be restarted if it itself crashes. On modern linux systems, a good option is
-     to define a systemd service for it.
+     to [define a systemd service](https://github.com/healthchecks/healthchecks/issues/273#issuecomment-520560304)
+     for it.
   * `manage.py sendreports --loop` is the command that sends periodic email reports and
      the email reminders when any checks are down. If you need this functionality, make
      sure `manage.py sendreports --loop` is started on reboot and is always running,
@@ -585,11 +589,10 @@ Healthchecks instance in production.
 
 ## Docker Image
 
-This project builds a Docker image for pushes to `master` and for every release.
-The Dockerfile lives in the [/docker/](https://github.com/nferrucho-unal/healthchecks/tree/master/docker)
-directory, and images for amd64, arm/v7 and arm64 architectures are published to the
-Docker Hub repository `<DOCKERHUB_USERNAME>/healthchecks`. Set the
-`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` GitHub Actions secrets to publish images.
+Healthchecks provides a reference Dockerfile and prebuilt Docker images for every
+release. The Dockerfile lives in the [/docker/](https://github.com/healthchecks/healthchecks/tree/master/docker)
+directory, and Docker images for amd64, arm/v7 and arm64 architectures are available
+[on Docker Hub](https://hub.docker.com/r/healthchecks/healthchecks).
 
 The Docker images:
 

@@ -1,0 +1,17 @@
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasecurity/trivy:latest image healthchecks:scan-target
+** para escaneo de git action
+docker compose build --no-cache
+** limpiar cache
+git log --oneline -n 5
+** ver logs anteriores de git
+git push origin master --force
+** forza la version actual como HEAD
+git reset --hard 2041280b
+** va a una version especifica
+gh cache list
+** lista caches github
+gh cache delete --all
+borra todos los caches
+gh cache delete --all --repo nferrucho-unal/healthchecks-new
+borra todos los caches de un repo especifico
+

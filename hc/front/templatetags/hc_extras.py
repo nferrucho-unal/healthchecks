@@ -58,8 +58,11 @@ def site_name() -> str:
 
 
 @register.simple_tag
-def support_email() -> str | None:
-    return settings.SUPPORT_EMAIL
+def obfuscated_support_email() -> str:
+    """Return settings.SUPPORT_EMAIL, encoded as HTML entities for obfuscation."""
+    if settings.SUPPORT_EMAIL:
+        return mark_safe("".join(f"&#{ord(c)};" for c in settings.SUPPORT_EMAIL))
+    return ""
 
 
 @register.simple_tag

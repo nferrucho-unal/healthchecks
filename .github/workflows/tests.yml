@@ -2,15 +2,16 @@ name: Tests
 
 on:
     push:
-        branches: [nelson]
+        branches: [master]
     pull_request:
-        branches: [nelson]
+        branches: [master]
 
-permissions: {}
+permissions:
+    contents: read
 
 jobs:
     test:
-        runs-on: ubuntu-26.04
+        runs-on: ubuntu-latest
         strategy:
             matrix:
                 db: [sqlite, postgres, mysql]

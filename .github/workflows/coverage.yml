@@ -2,15 +2,17 @@ name: Coverage
 
 on:
     push:
-        branches: [nelson]
+        branches: [master]
     pull_request:
-        branches: [nelson]
+        branches: [master]
 
-permissions: {}
-
+permissions:
+  contents: read
+  actions: read
+  
 jobs:
     test:
-        runs-on: ubuntu-26.04
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
             - name: Set up Python
@@ -29,6 +31,7 @@ jobs:
                   SECRET_KEY: dummy-key
               run: coverage run --omit=*/tests/*,*/migrations/* --source=hc manage.py test
             - name: Coveralls
-              run: coveralls --service=github
+              if: github.event.repository.private == false
+              uses: coverallsapp/github-action@v2
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
