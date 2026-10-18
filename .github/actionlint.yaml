@@ -1,8 +1,4 @@
 self-hosted-runner:
-  # "ubuntu-26.04" is a valid GitHub-hosted runner label, but it is newer than
-  # actionlint's bundled list of known labels, so it is reported as unknown.
-  # Declaring it here silences that false positive for tests.yml, mypy.yml
-  # and coverage.yml, which already run successfully on this runner image.
   labels:
     - ubuntu-26.04
     - healthchecks-local
