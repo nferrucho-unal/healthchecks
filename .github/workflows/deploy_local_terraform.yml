@@ -3,10 +3,12 @@ name: Deploy local (Terraform + Docker)
 # Se ejecuta cuando termina publish_docker_image.yml. El valor de "workflows"
 # debe ser EXACTAMENTE el "name:" de ese archivo (revíselo y ajústelo).
 "on":
-  workflow_run:
-    workflows: ["Publish Docker image"]
-    types: [completed]
-    branches: [master]
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Etiqueta en Docker Hub (vacío = sha- del commit)"
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       image_tag:
