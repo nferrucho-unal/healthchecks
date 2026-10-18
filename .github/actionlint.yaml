@@ -3,7 +3,6 @@ self-hosted-runner:
   # actionlint's bundled list of known labels, so it is reported as unknown.
   # Declaring it here silences that false positive for tests.yml, mypy.yml
   # and coverage.yml, which already run successfully on this runner image.
-self-hosted-runner:
   labels:
     - ubuntu-26.04
     - healthchecks-local
