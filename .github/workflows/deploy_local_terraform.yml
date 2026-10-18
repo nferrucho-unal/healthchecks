@@ -1,18 +1,19 @@
 name: Deploy local (Terraform + Docker)
 
-# Se ejecuta cuando termina publish_docker_image.yml. El valor de "workflows"
-# debe ser EXACTAMENTE el "name:" de ese archivo (revíselo y ajústelo).
+# Workflow reutilizable: lo llama el job "deploy_local" de
+# publish_docker_image.yml después de publicar la imagen en GHCR.
+# También se puede lanzar a mano desde la pestaña Actions.
 "on":
   workflow_call:
     inputs:
       image_tag:
-        description: "Etiqueta en Docker Hub (vacío = sha- del commit)"
+        description: "Etiqueta en GHCR (vacío = sha- del commit)"
         required: false
         type: string
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Etiqueta en Docker Hub (vacío = sha- del commit actual)"
+        description: "Etiqueta en GHCR (vacío = sha- del commit actual)"
         required: false
         type: string
 
@@ -28,8 +29,8 @@ env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
   TF_WORKING_DIR: terraform
-  # Commit publicado por publish_docker_image.yml (o el actual si es manual).
-  HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  # Imagen publicada por publish_docker_image.yml (job de GHCR).
+  IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -38,7 +39,6 @@ jobs:
   # ---------------------------------------------------------------------------
   smoke_test:
     name: Prueba del despliegue (runner de GitHub)
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -46,8 +46,6 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.HEAD_SHA }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -55,12 +53,12 @@ jobs:
 
       - name: Resolver imagen
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           INPUT_TAG: ${{ inputs.image_tag }}
         run: |
-          TAG="${INPUT_TAG:-sha-${HEAD_SHA:0:7}}"
-          echo "TF_VAR_image=${DOCKERHUB_USERNAME}/healthchecks:${TAG}" >> "$GITHUB_ENV"
-          echo "Imagen: ${DOCKERHUB_USERNAME}/healthchecks:${TAG}"
+          TAG="${INPUT_TAG:-sha-${GITHUB_SHA:0:7}}"
+          IMAGE="${IMAGE_REPOSITORY,,}:${TAG}"   # GHCR exige minúsculas
+          echo "TF_VAR_image=${IMAGE}" >> "$GITHUB_ENV"
+          echo "Imagen: ${IMAGE}"
 
       - name: Formato y validación
         run: |
@@ -92,8 +90,8 @@ jobs:
         run: terraform destroy -auto-approve || true
 
   # ---------------------------------------------------------------------------
-  # 2. Despliegue persistente en su equipo (runner self-hosted con Docker).
-  #    Requiere registrar el runner con la etiqueta "healthchecks-local".
+  # 2. Despliegue persistente en su equipo (runner self-hosted como servicio,
+  #    con la etiqueta "healthchecks-local" y Docker Desktop en ejecución).
   # ---------------------------------------------------------------------------
   deploy_local:
     name: Desplegar en localhost:8000 (self-hosted)
@@ -111,8 +109,6 @@ jobs:
       TF_VAR_docker_host: ${{ vars.DOCKER_HOST || 'npipe:////./pipe/docker_engine' }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.HEAD_SHA }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -120,11 +116,10 @@ jobs:
 
       - name: Resolver imagen
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           INPUT_TAG: ${{ inputs.image_tag }}
         run: |
-          $tag = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { "sha-" + $env:HEAD_SHA.Substring(0, 7) }
-          $image = "$($env:DOCKERHUB_USERNAME)/healthchecks:$tag"
+          $tag = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { "sha-" + $env:GITHUB_SHA.Substring(0, 7) }
+          $image = "$($env:IMAGE_REPOSITORY.ToLower()):$tag"
           "TF_VAR_image=$image" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Imagen: $image"
 

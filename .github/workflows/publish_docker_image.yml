@@ -184,11 +184,11 @@ jobs:
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha
-    deploy_local:
-      name: Desplegar en localhost:8000
-      needs: [dockerhub]          # ← usa el id real del job que publica en Docker Hub
-      if: github.ref == 'refs/heads/master' || github.event_name == 'release'
-      uses: ./.github/workflows/deploy_local_terraform.yml
-      secrets: inherit            # pasa DOCKERHUB_USERNAME al workflow llamado
-      permissions:
-        contents: read
+
+  deploy_local:
+    name: Desplegar en localhost:8000
+    needs: [ghcr]
+    if: github.ref == 'refs/heads/master' || github.event_name == 'release'
+    uses: ./.github/workflows/deploy_local_terraform.yml
+    permissions:
+      contents: read
