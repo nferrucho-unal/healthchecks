@@ -1,0 +1,44 @@
+digraph infraestructura_healthchecks {
+  rankdir=TB;
+  fontsize=12;
+  fontname="Helvetica";
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+
+  Users [label="Usuarios / sistemas\nque envían pings", shape=cloud, style=filled, fillcolor="#ECF0F1"];
+
+  subgraph cluster_vpc {
+    label="Red del proyecto en AWS";
+    style="filled,rounded";
+    color="#BDC3C7";
+    fillcolor="#F8F9F9";
+
+    subgraph cluster_public {
+      label="Zona pública";
+      style="filled,rounded";
+      color="#F39C12";
+      fillcolor="#FFF0CC";
+
+      LB [label="Balanceador de carga\nEntrada HTTP", shape=box, style=filled, fillcolor=white];
+      APP [label="Aplicación Healthchecks\nContenedor web\n(uWSGI + alertas)", shape=box, style=filled, fillcolor=white];
+    }
+
+    subgraph cluster_private {
+      label="Zona privada (sin acceso desde Internet)";
+      style="filled,rounded";
+      color="#27AE60";
+      fillcolor="#DDF5E5";
+
+      DB [label="Base de datos\nPostgreSQL", shape=cylinder, style=filled, fillcolor=white];
+    }
+  }
+
+  Secrets [label="Contraseñas y claves", shape=box, style=filled, fillcolor="#F3E5F5"];
+  Logs [label="Registros de la app", shape=box, style=filled, fillcolor="#F3E5F5"];
+
+  Users -> LB [label="HTTP"];
+  LB -> APP [label="Puerto de la app"];
+  APP -> DB [label="SQL"];
+  APP -> Secrets [style=dashed];
+  APP -> Logs [style=dashed];
+}
