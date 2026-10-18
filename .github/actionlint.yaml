@@ -5,3 +5,4 @@ self-hosted-runner:
   # and coverage.yml, which already run successfully on this runner image.
   labels:
     - ubuntu-26.04
+    - healthchecks-local

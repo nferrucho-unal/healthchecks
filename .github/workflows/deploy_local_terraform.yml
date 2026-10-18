@@ -1,0 +1,153 @@
+name: Deploy local (Terraform + Docker)
+
+# Se ejecuta cuando termina publish_docker_image.yml. El valor de "workflows"
+# debe ser EXACTAMENTE el "name:" de ese archivo (revíselo y ajústelo).
+"on":
+  workflow_run:
+    workflows: ["Publish Docker image"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Etiqueta en Docker Hub (vacío = sha- del commit actual)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Un solo despliegue a la vez; no cancela uno en curso.
+concurrency:
+  group: deploy-local
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_WORKING_DIR: terraform
+  # Commit publicado por publish_docker_image.yml (o el actual si es manual).
+  HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Prueba en un runner de GitHub: terraform test (módulos simulados) y luego
+  #    despliegue real desechable: apply, verificación y destroy.
+  # ---------------------------------------------------------------------------
+  smoke_test:
+    name: Prueba del despliegue (runner de GitHub)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Resolver imagen
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+        run: |
+          TAG="${INPUT_TAG:-sha-${HEAD_SHA:0:7}}"
+          echo "TF_VAR_image=${DOCKERHUB_USERNAME}/healthchecks:${TAG}" >> "$GITHUB_ENV"
+          echo "Imagen: ${DOCKERHUB_USERNAME}/healthchecks:${TAG}"
+
+      - name: Formato y validación
+        run: |
+          terraform fmt -check -recursive
+          terraform init
+          terraform validate
+
+      - name: Pruebas de los módulos (terraform test, sin Docker)
+        run: terraform test
+
+      - name: Desplegar (efímero)
+        run: terraform apply -auto-approve
+
+      - name: Verificar /api/v3/status/
+        run: |
+          URL="$(terraform output -raw status_url)"
+          curl --fail --silent --show-error \
+            --retry 18 --retry-delay 10 --retry-connrefused --max-time 5 \
+            "$URL"
+          echo
+          echo "OK: ${URL}"
+
+      - name: Logs del contenedor web (si falla)
+        if: failure()
+        run: docker logs healthchecks-web --tail 200 || true
+
+      - name: Destruir
+        if: always()
+        run: terraform destroy -auto-approve || true
+
+  # ---------------------------------------------------------------------------
+  # 2. Despliegue persistente en su equipo (runner self-hosted con Docker).
+  #    Requiere registrar el runner con la etiqueta "healthchecks-local".
+  # ---------------------------------------------------------------------------
+  deploy_local:
+    name: Desplegar en localhost:8000 (self-hosted)
+    needs: smoke_test
+    runs-on: [self-hosted, healthchecks-local]
+    timeout-minutes: 20
+    environment: local
+    defaults:
+      run:
+        shell: powershell
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      # Estado fuera del repositorio: checkout limpia la carpeta de trabajo.
+      TF_STATE_PATH: ${{ vars.TF_STATE_PATH || 'C:/healthchecks-tf/terraform.tfstate' }}
+      TF_VAR_docker_host: ${{ vars.DOCKER_HOST || 'npipe:////./pipe/docker_engine' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Resolver imagen
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+        run: |
+          $tag = if ($env:INPUT_TAG) { $env:INPUT_TAG } else { "sha-" + $env:HEAD_SHA.Substring(0, 7) }
+          $image = "$($env:DOCKERHUB_USERNAME)/healthchecks:$tag"
+          "TF_VAR_image=$image" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Imagen: $image"
+
+      - name: Preparar carpeta del estado
+        run: New-Item -ItemType Directory -Force -Path (Split-Path $env:TF_STATE_PATH) | Out-Null
+
+      - name: Init
+        run: terraform init -reconfigure "-backend-config=path=$env:TF_STATE_PATH"
+
+      - name: Apply
+        run: terraform apply -auto-approve
+
+      - name: Verificar /api/v3/status/
+        run: |
+          $url = terraform output -raw status_url
+          for ($i = 1; $i -le 18; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
+              Write-Host "OK ($($r.StatusCode)): $($r.Content)"
+              Write-Host "Aplicación: $(terraform output -raw app_url)"
+              exit 0
+            } catch {
+              Write-Host "Esperando la aplicación... ($i/18)"
+              Start-Sleep -Seconds 10
+            }
+          }
+          docker logs healthchecks-web --tail 200
+          exit 1
